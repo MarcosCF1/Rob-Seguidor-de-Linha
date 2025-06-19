@@ -1,0 +1,71 @@
+from machine import Pin, PWM
+from time import sleep
+
+# === Configuração dos pinos PWM para os motores ===
+# A_1A_pwm, A_1B_pwm, B_1A_pwm e B_1B_pwm controlam os motores com PWM na frequência 1000 Hz
+A_1A_pwm = PWM(Pin(22), freq=1000)
+A_1B_pwm = PWM(Pin(23), freq=1000)
+B_1A_pwm = PWM(Pin(19), freq=1000)
+B_1B_pwm = PWM(Pin(21), freq=1000)
+
+# === Configuração dos sensores de linha ===
+# sensor_esquerdo no pino 12 e sensor_direito no pino 14, ambos como entrada digital
+sensor_esquerdo = Pin(12, Pin.IN)  
+sensor_direito = Pin(14, Pin.IN)   
+
+# === Velocidade do PWM para controle dos motores ===
+# Valor entre 0 e 1023, sendo 450 uma velocidade média
+velocidade = 450
+
+# === Função para mover o robô para frente ===
+def motores_frente():
+    # Motor A gira no sentido reverso
+    A_1A_pwm.duty(0)
+    A_1B_pwm.duty(velocidade)
+    # Motor B gira no sentido reverso
+    B_1A_pwm.duty(0)
+    B_1B_pwm.duty(velocidade)
+
+# === Função para virar o robô para a direita ===
+def virar_direita():
+    # Motor A gira para frente
+    A_1A_pwm.duty(0)
+    A_1B_pwm.duty(velocidade)
+    # Motor B gira para trás
+    B_1A_pwm.duty(velocidade)
+    B_1B_pwm.duty(0)
+
+# === Função para virar o robô para a esquerda ===
+def virar_esquerda():
+    # Motor A gira para trás
+    A_1A_pwm.duty(velocidade)
+    A_1B_pwm.duty(0)
+    # Motor B gira para frente
+    B_1A_pwm.duty(0)
+    B_1B_pwm.duty(velocidade)
+
+# === Função para parar os motores ===
+def parar_motores():
+    # Zera o duty cycle dos quatro canais PWM
+    A_1A_pwm.duty(0)
+    A_1B_pwm.duty(0)
+    B_1A_pwm.duty(0)
+    B_1B_pwm.duty(0)
+
+# === Loop principal de controle ===
+while True:
+    # Leitura dos sensores de linha
+    esq = sensor_esquerdo.value()
+    dir = sensor_direito.value()
+    
+    # Tabela de ações baseada na leitura dos sensores:
+    # 0 -> sensor detecta linha preta
+    # 1 -> sensor fora da linha (superfície branca)
+    if esq == 0 and dir == 0: 
+        motores_frente()          # Ambos sensores na linha: segue em frente
+    elif esq == 1 and dir == 0:
+        virar_esquerda()          # Sensor esquerdo fora da linha: virar para esquerda
+    elif esq == 0 and dir == 1:
+        virar_direita()           # Sensor direito fora da linha: virar para direita
+    else:  # esq == 1 and dir == 1
+        motores_frente()          # Ambos sensores fora da linha: segue em frente (assumindo alinhamento)
