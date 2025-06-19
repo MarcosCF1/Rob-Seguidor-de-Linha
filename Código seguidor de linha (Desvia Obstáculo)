@@ -1,0 +1,98 @@
+from machine import Pin, time_pulse_us, PWM
+import time
+
+# PWM
+A_1A_pwm = PWM(Pin(22), freq=1000)
+A_1B_pwm = PWM(Pin(23), freq=1000)
+B_1A_pwm = PWM(Pin(19), freq=1000)
+B_1B_pwm = PWM(Pin(21), freq=1000)
+
+# Sensores
+sensor_esquerdo = Pin(12, Pin.IN)  
+sensor_direito = Pin(14, Pin.IN)   
+
+# Sensor ultrassônico HC-SR04
+TRIG = Pin(15, Pin.OUT)
+ECHO = Pin(33, Pin.IN)
+
+# Configuração
+velocidade = 450
+motores_parados = False
+
+# Tempo para parar após linha preta nos dois sensores
+tempo_parada = 200  # em milissegundos
+inicio_cruzamento = None
+
+# === Funções ===
+def motores_frente():
+    A_1A_pwm.duty(0)
+    A_1B_pwm.duty(velocidade)
+    B_1A_pwm.duty(0)
+    B_1B_pwm.duty(velocidade)
+
+def virar_direita():
+    A_1A_pwm.duty(0)
+    A_1B_pwm.duty(velocidade)
+    B_1A_pwm.duty(velocidade)
+    B_1B_pwm.duty(0)
+
+def virar_esquerda():
+    A_1A_pwm.duty(velocidade)
+    A_1B_pwm.duty(0)
+    B_1A_pwm.duty(0)
+    B_1B_pwm.duty(velocidade)
+
+def parar_motores():
+    A_1A_pwm.duty(0)
+    A_1B_pwm.duty(0)
+    B_1A_pwm.duty(0)
+    B_1B_pwm.duty(0)
+
+def medir_distancia():
+    TRIG.off()
+    time.sleep_us(2)
+    TRIG.on()
+    time.sleep_us(10)
+    TRIG.off()
+    duracao = time_pulse_us(ECHO, 1, 30000)
+    if duracao <= 0:
+        return None
+    return (duracao / 2) * 0.0343
+
+# === Loop principal ===
+while True:
+    dist = medir_distancia()
+    if dist is not None and dist > 2:
+        print("Distância: {:.2f} cm".format(dist))
+        motores_parados = dist < 30
+    else:
+        print("Falha na leitura ou distância fora do alcance")
+
+    if motores_parados:
+        parar_motores()
+        inicio_cruzamento = None  # zera tempo caso pare por obstáculo
+    else:
+        esq = sensor_esquerdo.value()
+        dir = sensor_direito.value()
+
+        if esq == 0 and dir == 0:
+            motores_frente()
+            inicio_cruzamento = None  # zera o tempo, pois está seguindo normalmente
+
+        elif esq == 1 and dir == 0:
+            virar_esquerda()
+            inicio_cruzamento = None
+
+        elif esq == 0 and dir == 1:
+            virar_direita()
+            inicio_cruzamento = None
+
+        else:  # esq == 1 and dir == 1 → linha preta nos dois sensores
+            if inicio_cruzamento is None:
+                inicio_cruzamento = time.ticks_ms()
+                motores_frente()  # ainda anda por 200ms
+            else:
+                if time.ticks_diff(time.ticks_ms(), inicio_cruzamento) >= tempo_parada:
+                    parar_motores()
+
+    time.sleep(0.01)  # resposta mais rápida
